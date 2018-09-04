@@ -1,0 +1,9 @@
+Package: pi.empresas.b3
+Title: Propriedade Intelectual das empresas B3
+Version: 0.0.0.9000
+Authors@R: person("Cristiano", "Santos", email = "cristiano1br@gmail.com", role = c("aut", "cre"))
+Description: Analisa dados de propriedade intelectual das empresas listadas na B3
+Depends: R (>= 3.4.4)
+License: file LICENSE
+Encoding: UTF-8
+LazyData: true
