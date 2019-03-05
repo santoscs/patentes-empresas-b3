@@ -1,0 +1,166 @@
+---
+title: "README"
+author: "Cristiano Santos"
+date: "12 de outubro de 2018"
+output: md_document
+    # word_document:
+    #   fig_height: 7
+    #   fig_width: 9
+
+bibliography: bibliography.bib
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=FALSE)
+load("data-raw/tidy-dados.RData")
+load("data-raw/info-empresas-b3.RData")
+library(tidyverse)
+library(janitor)
+source("R/rtble.R")
+```
+
+
+
+
+
+## Results
+
+
+### Summary statistics of the variables
+
+```{r descritiva}
+library(skimr)
+ed <- dados %>%
+  dplyr::select(pro_patente, liq_cor, liq_geral, end_ger, end_ce, roa, roe, intang_ativo, intang_pl, pagr, pplgr, tamanho, idade, e_cedente, e_cessionaria, alta, baixa) %>%
+  skim()
+
+
+
+tab <- ed %>% dplyr::filter(stat=="mean") %>% dplyr::select(variable)
+tab <- cbind(tab, ed %>% dplyr::filter(stat=="mean") %>% dplyr::select(formatted))
+tab <- cbind(tab, ed %>% dplyr::filter(stat=="p50") %>% dplyr::select(formatted))
+tab <- cbind(tab, ed %>% dplyr::filter(stat=="sd") %>% dplyr::select(formatted))
+tab <- cbind(tab, ed %>% dplyr::filter(stat=="p0") %>% dplyr::select(formatted))
+tab <- cbind(tab, ed %>% dplyr::filter(stat=="p100") %>% dplyr::select(formatted))
+
+
+colnames(tab) <- c("Variable", "Mean", "S.Dev.", "Min.", "Max.")
+
+tab[,"Variable"] <- c("Patent Application", "Current Liquidity", "General Liquidity", "Debt Ratio", "Short-term Debt Ratio", "Return on Assets  (ROA)", "Return on Equity (ROE)", "Equity Intangibility", "Asset Intangibility", "Equity's potential to add value",  "Asset's potential to add value", "Size", "Age", "Technology assignor", "Technology assignee", "High technological intensity", "Low technological intensity")
+
+skimr::kable(tab)
+```
+
+
+
+### Distribution of companies and propensity to patent by sectors
+
+```{r desc1}
+
+c1 <- dados %>%
+  count(setor, cnpj) %>%
+  count(setor) %>%
+  mutate(empresas=nn)  %>%
+  select(-nn) 
+c2 <- dados %>%
+  count(setor, pro_patente, cnpj) %>%
+  count(setor, pro_patente) %>%
+  filter(pro_patente==1) %>%
+  mutate(empresas_patentes=nn) %>%
+  select(-pro_patente, -nn) 
+tab <- left_join(c1, c2)
+
+c3 <- tab %>%
+  mutate(propensao_patente = empresas_patentes/empresas) %>%
+  mutate(propensao_patente=round_half_up(propensao_patente, digits = 2)) %>%
+  select(-empresas_patentes, -empresas)
+
+tab <- tab %>%
+  adorn_totals("row") %>%
+  adorn_percentages("all") %>%
+  adorn_pct_formatting(affix_sign = FALSE) %>%
+  adorn_ns(position = "front") %>%
+  as.data.frame()
+
+
+tab <- left_join(tab, c3)
+
+colnames(tab) <- c('Sector', 'Num. of companies (% of total)', 'Num. of companies with one or more patents (% of total)', 'Propensity to patent' )
+
+tab <- rbind(c(" ", "A", "B", "C= B/A"), tab)
+knitr::kable(tab)  
+```
+
+
+
+
+
+
+
+### Distribuição das empresas da B3 e suas patentes por ano
+
+
+```{r desc2}
+
+
+c1 <- dados %>%
+  count(ano, cnpj) %>%
+  count(ano) %>%
+  mutate(empresas=nn) %>%
+  select(-nn) 
+
+c2 <- dados %>%
+  count(ano, pro_patente, cnpj) %>%
+  count(ano, pro_patente) %>%
+  filter(pro_patente==1) %>%
+  mutate(empresas_patentes=nn) %>%
+  select(-pro_patente, -nn) 
+
+tab <- left_join(c1, c2)
+tab <- tab %>%
+  mutate(propensao_patente = empresas_patentes/empresas) %>%
+  mutate(propensao_patente=round_half_up(propensao_patente, digits = 2))
+
+colnames(tab) <- c('Ano', 'Numero de empresas', 'Numero de empresas com 1 patente ou mais', 'Propensao a patentear' )
+tab <- rbind(c(" ", "A", "B", "C= B/A"), tab)
+knitr::kable(tab)  
+
+
+```
+
+
+
+### Logit model pooled
+
+
+Sem setor
+
+```{r estimation pooled, warning=FALSE}
+library(margins)
+library(lmtest)
+pooled.logit <- glm(pro_patente ~ liq_cor + liq_geral + end_ger + end_ce + roa + roe + intang_ativo + intang_pl + pagr + pplgr + tamanho + idade + e_cedente + e_cessionaria + alta + baixa, 
+                    family=binomial(link="logit"), data=dados)
+
+tab <- rtble.glm(pooled.logit)
+tab %>% 
+  mutate(factor = c("intercept", "Current Liquidity", "General Liquidity", "Debt Ratio", "Short-term Debt Ratio", "Return on Assets  (ROA)", "Return on Equity (ROE)", "Equity Intangibility", "Asset Intangibility", "Equity's potential to add value",  "Asset's potential to add value", "Size", "Age", "Technology assignor", "Technology assignee", "High technological intensity", "Low technological intensity", "AIC", "observations", "McFadden Pseudo R2", "Effron Pseudo R2", "Nagelkerke Pseudo R2", "predictedy1",  "predictedy0", "predictedy1and0")) %>%
+  knitr::kable(., digits = 3)
+
+```
+
+Com setor
+
+```{r estimation pooled ano setor, results = "asis"}
+
+pooled.logit <- glm(pro_patente ~ liq_cor + liq_geral + end_ger + end_ce + roa + roe + intang_ativo + intang_pl + pagr + pplgr + tamanho + idade + e_cedente + e_cessionaria + alta + baixa + setor,
+                    family=binomial(link="logit"), data=dados)
+tab <- rtble.glm(pooled.logit)
+
+
+knitr::kable(tab, digits = 3)
+```
+
+
+
+
